@@ -1,6 +1,6 @@
 # Why: main
 
-<!-- grepathy:v1 generated 2026-07-14 — review before sharing; edit freely, edits are preserved -->
+<!-- grepathy:v1 generated 2026-07-15 — review before sharing; edit freely, edits are preserved -->
 
 ## Intent
 Implement Grepathy v1: a CLI and git hooks to distill AI agent session transcripts into privacy-safe, committed why-packs so future agents and humans can find reasoning without asking.
@@ -1128,3 +1128,24 @@ The pre-push hook was only committing newly-distilled why-pack changes, leaving 
 Considered/rejected: Original approach (commit only newly-distilled changes) was insufficient because background Stop-hook distills write changes that remain uncommitted until the next push, creating the staleness lag.
 Risk: Control-flow restructuring could affect performance characteristics; however, early-exit paths for avoiding unnecessary processing when no sessions need distilling remain intact.
 Reviewer attention: Verify that the restructured control flow preserves the performance optimization (still skips expensive operations when unneeded) while ensuring all paths commit any pending why-pack changes in auto mode.
+
+### Bump package version from 1.0.0 to 1.1.0 per semantic versioning
+Status: discussed
+Touches: `package.json`, `package-lock.json`
+
+The agent applied semantic versioning conventions, bumping the minor version to reflect a backward-compatible feature addition to the package. The version was tagged as v1.1.0 for release.
+
+### Create publish-on-tag GitHub Actions workflow
+Status: discussed
+Touches: `.github/workflows/release.yml`
+
+The agent scaffolded a GitHub Actions workflow that automatically publishes the package to npm when a version tag matching v* is pushed. This automates the build-and-publish mechanism while preserving the human gate—developers remain in control by explicitly deciding to release via `npm version <semver>` and `git push --follow-tags`.
+
+Considered/rejected: Rejected automatic publish-on-merge to main in favor of explicit tag-based releases, ensuring humans retain the explicit decision to ship.
+Risk: Requires NPM_TOKEN GitHub secret to be configured for npm registry authentication. Workflow will fail silently if token is missing or expired.
+
+### Restore grepathy's auto-distilled why-pack after version bump
+Status: discussed
+Touches: `.ai/why/main.md`
+
+The agent detected that grepathy's distiller had updated the why-pack file during the session, which would block `npm version` since it requires a clean working tree. It stashed these changes before the version bump and restored them afterward, allowing them to commit as part of the next push cycle per grepathy's design.
