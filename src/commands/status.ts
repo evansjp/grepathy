@@ -4,7 +4,7 @@ import { readState } from "../state/state.js";
 import { discoverAndSync } from "../core/sweep.js";
 import { fileSize } from "../util/fsx.js";
 import { whyPackPath, slugifyBranch } from "../util/paths.js";
-import { currentBranch } from "../util/git.js";
+import { currentBranch, trackedFilesUnder } from "../util/git.js";
 import { whyPackGitStatus } from "../core/autocommit.js";
 import { say, warn } from "../util/log.js";
 
@@ -76,7 +76,15 @@ export function status(): number {
   // freshness axes don't apply — report the mode instead of nagging.
   if (rt.cfg.selfOnly) {
     say("");
-    say("  why-pack: self-only mode — personal notes, not committed or shared.");
+    const tracked = trackedFilesUnder(rt.repoRoot, ".ai");
+    if (tracked.length) {
+      say(
+        `  ⚠ why-pack: self-only mode, but ${tracked.length} file(s) under .ai/ are already ` +
+          "git-tracked — the exclude can't hide them. Run `git rm --cached -r .ai` to untrack.",
+      );
+    } else {
+      say("  why-pack: self-only mode — personal notes, not committed or shared.");
+    }
     return 0;
   }
 

@@ -5,7 +5,7 @@ import { isDisabled } from "../util/config.js";
 import { readState } from "../state/state.js";
 import { discoverAndSync, sessionsNeedingDistill } from "../core/sweep.js";
 import { claudeProjectDirFor } from "../util/paths.js";
-import { hooksDir } from "../util/git.js";
+import { hooksDir, trackedFilesUnder } from "../util/git.js";
 import { whyPackGitStatus } from "../core/autocommit.js";
 import { spawnSync } from "node:child_process";
 import { say, warn } from "../util/log.js";
@@ -91,7 +91,17 @@ export function doctor(): number {
   // Why-pack git freshness — the two axes that let GitHub silently lag. In
   // self-only mode nothing is committed by design, so those axes don't apply.
   if (rt.cfg.selfOnly) {
-    line(OK, "self-only mode — why-packs are personal (not committed or shared)");
+    const tracked = trackedFilesUnder(rt.repoRoot, ".ai");
+    if (tracked.length) {
+      line(
+        BAD,
+        `self-only mode, but ${tracked.length} file(s) under .ai/ are already git-tracked — ` +
+          "the exclude can't hide them; run `git rm --cached -r .ai` to untrack",
+      );
+      problems++;
+    } else {
+      line(OK, "self-only mode — why-packs are personal (not committed or shared)");
+    }
   } else {
     const g = whyPackGitStatus(rt.repoRoot);
     if (g.uncommitted === 0 && g.unpushed === 0) {

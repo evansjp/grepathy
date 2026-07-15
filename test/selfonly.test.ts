@@ -9,6 +9,7 @@ import { init } from "../src/commands/init.js";
 import { sync } from "../src/commands/sync.js";
 import { uninstall } from "../src/commands/uninstall.js";
 import { status } from "../src/commands/status.js";
+import { doctor } from "../src/commands/doctor.js";
 
 function git(cwd: string, args: string[]): string {
   return (spawnSync("git", args, { cwd, encoding: "utf8" }).stdout ?? "").trim();
@@ -158,4 +159,38 @@ test("status under self-only reports the mode, not commit/push nags", async () =
   const { out } = await inRepo(dir, () => status());
   assert.match(out, /self-only/i);
   assert.ok(!/uncommitted change/i.test(out), "no uncommitted nag in self-only");
+});
+
+test("status under self-only warns instead of reassuring when .ai/ is already tracked", async () => {
+  const dir = tempRepo();
+  fs.mkdirSync(path.join(dir, ".ai", "why"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".ai", "why", "old.md"), "# tracked\n");
+  git(dir, ["add", ".ai/why/old.md"]);
+  git(dir, ["commit", "-qm", "add why"]);
+
+  await inRepo(dir, () => init({ selfOnly: true }));
+  const { out } = await inRepo(dir, () => status());
+  assert.match(out, /already.*git-tracked/i, "warns that the guarantee is broken");
+  assert.ok(!/not committed or shared/i.test(out), "does not print the safe green line");
+});
+
+test("doctor under self-only reports OK when nothing is tracked", async () => {
+  const dir = tempRepo();
+  await inRepo(dir, () => init({ selfOnly: true }));
+  const { out, result } = await inRepo(dir, () => doctor());
+  assert.match(out, /self-only mode — why-packs are personal/i);
+  assert.equal(result, 0);
+});
+
+test("doctor under self-only flags a problem when .ai/ is already tracked", async () => {
+  const dir = tempRepo();
+  fs.mkdirSync(path.join(dir, ".ai", "why"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".ai", "why", "old.md"), "# tracked\n");
+  git(dir, ["add", ".ai/why/old.md"]);
+  git(dir, ["commit", "-qm", "add why"]);
+
+  await inRepo(dir, () => init({ selfOnly: true }));
+  const { out, result } = await inRepo(dir, () => doctor());
+  assert.match(out, /already git-tracked/i, "flags the broken guarantee");
+  assert.notEqual(result, 0, "reports a problem, not a clean bill of health");
 });
