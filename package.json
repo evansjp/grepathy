@@ -1,0 +1,40 @@
+{
+  "name": "grepathy",
+  "version": "1.0.0",
+  "description": "Your agent writes down why, in the repo, so everyone else's agents — and everyone else — can find it without asking you.",
+  "type": "module",
+  "author": "John-Paul Evans",
+  "repository": { "type": "git", "url": "git+https://github.com/evansjp/grepathy.git" },
+  "homepage": "https://github.com/evansjp/grepathy#readme",
+  "bugs": { "url": "https://github.com/evansjp/grepathy/issues" },
+  "bin": {
+    "grepathy": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "tsc",
+    "pretest": "tsc -p tsconfig.test.json",
+    "test": "node --test dist-test/test/*.test.js"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "claude-code",
+    "codex",
+    "reasoning",
+    "why",
+    "code-review",
+    "git-hooks"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

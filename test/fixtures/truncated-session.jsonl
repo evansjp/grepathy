@@ -1,0 +1,3 @@
+{"type":"user","gitBranch":"main","cwd":"/repo","timestamp":"2026-07-07T15:00:00Z","message":{"role":"user","content":"Cache the config loader."}}
+{"type":"assistant","gitBranch":"main","cwd":"/repo","timestamp":"2026-07-07T15:00:30Z","message":{"role":"assistant","content":[{"type":"text","text":"I'll memoize loadConfig."},{"type":"tool_use","id":"t1","name":"Edit","input":{"file_path":"src/config.ts","old_string":"","new_string":"let cache; export function loadConfig(){ return cache ??= read(); }"}}]}}
+{"type":"assistant","gitBranch":"main","cwd":"/repo","timestamp":"2026-07-07T15:01:00Z","message":{"role":"assistant","content":[{"type":"text","text":"Done.","tru

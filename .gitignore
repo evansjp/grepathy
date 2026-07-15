@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-test/
+*.tsbuildinfo
+
+# Grepathy local state (also added by `grepathy init`)
+.ai/grepathy/
+
+# Grepathy (local, per-machine)
+.claude/settings.local.json
