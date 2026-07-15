@@ -37,7 +37,9 @@ function usage(): void {
   process.stdout.write(`grepathy ${VERSION} — your agent writes down WHY, in the repo.
 
 Usage:
-  grepathy init                      Install hooks, create dirs/config (idempotent)
+  grepathy init [--self-only]        Install hooks, create dirs/config (idempotent)
+      --self-only                      personal mode: commit nothing; ignore
+                                       artifacts via .git/info/exclude
   grepathy distill [opts]            Distill sessions into why-packs
       --session <id>                   only this session
       --branch <name>                  attribute to this branch
@@ -61,8 +63,10 @@ async function main(): Promise<number> {
   const rest = argv.slice(1);
 
   switch (command) {
-    case "init":
-      return init();
+    case "init": {
+      const { flags } = parseFlags(rest);
+      return init({ selfOnly: flags["self-only"] === true });
+    }
     case "distill": {
       const { flags } = parseFlags(rest);
       return distill({

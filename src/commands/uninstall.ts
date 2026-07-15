@@ -3,6 +3,12 @@ import * as path from "node:path";
 import { resolveRuntime } from "../util/runtime.js";
 import { hooksDir } from "../util/git.js";
 import { writeFileAtomic } from "../util/fsx.js";
+import {
+  removeBlock,
+  infoExcludePath,
+  EXCLUDE_FENCE,
+  CLAUDE_LOCAL_FENCE,
+} from "../util/exclude.js";
 import { say, warn } from "../util/log.js";
 
 const GREP_BEGIN = "# >>> grepathy managed >>>";
@@ -22,6 +28,7 @@ export function uninstall(): number {
   removeClaudeHooks(rt.repoRoot);
   removePrePushBlock(rt.repoRoot);
   removeClaudeMdBlock(rt.repoRoot);
+  removeSelfOnlyBlocks(rt.repoRoot);
 
   try {
     fs.rmSync(rt.paths.stateDir, { recursive: true, force: true });
@@ -32,6 +39,18 @@ export function uninstall(): number {
   say("grepathy: uninstalled hooks and removed local state (.ai/grepathy).");
   say("Committed why-packs (.ai/why) and .grepathy.json were left untouched.");
   return 0;
+}
+
+/**
+ * Strip the self-only additions: our block in `.git/info/exclude` and the
+ * personal pointer in CLAUDE.local.md. Harmless in non-self-only repos (the
+ * blocks simply aren't there). Why-pack files are left on disk, as with the
+ * shared uninstall.
+ */
+function removeSelfOnlyBlocks(repoRoot: string): void {
+  const excl = infoExcludePath(repoRoot);
+  if (excl) removeBlock(excl, EXCLUDE_FENCE);
+  removeBlock(path.join(repoRoot, "CLAUDE.local.md"), CLAUDE_LOCAL_FENCE);
 }
 
 /** Strip the grepathy pointer block from CLAUDE.md; remove the file if empty. */

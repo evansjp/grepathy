@@ -76,6 +76,13 @@ export function branchDiffFiles(repoRoot: string, branch: string): string[] {
   return [];
 }
 
+/** Git-tracked files matching `pathspec` (repo-relative POSIX paths). */
+export function trackedFilesUnder(repoRoot: string, pathspec: string): string[] {
+  const out = git(repoRoot, ["ls-files", "--", pathspec]);
+  if (!out) return [];
+  return out.split("\n").map((l) => l.trim()).filter(Boolean);
+}
+
 /** Stage the given files. Best-effort; ignores files that don't exist. */
 export function stageFiles(repoRoot: string, files: string[]): void {
   if (files.length === 0) return;

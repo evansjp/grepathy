@@ -1,11 +1,17 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { resolveRuntime } from "../util/runtime.js";
-import { grepathyPaths } from "../util/paths.js";
+import { grepathyPaths, GrepathyPaths } from "../util/paths.js";
 import { defaultSharedConfig } from "../util/config.js";
 import { ensureDir, writeFileAtomic } from "../util/fsx.js";
 import { hookInvocation, hookFallback } from "../util/self.js";
-import { hooksDir } from "../util/git.js";
+import { hooksDir, trackedFilesUnder } from "../util/git.js";
+import {
+  ensureBlock,
+  infoExcludePath,
+  EXCLUDE_FENCE,
+  CLAUDE_LOCAL_FENCE,
+} from "../util/exclude.js";
 import { say, warn } from "../util/log.js";
 import { readState } from "../state/state.js";
 import { discoverAndSync, sessionsNeedingDistill } from "../core/sweep.js";
@@ -15,7 +21,12 @@ import { distill } from "./distill.js";
 const GREP_BEGIN = "# >>> grepathy managed >>>";
 const GREP_END = "# <<< grepathy managed <<<";
 
-export async function init(): Promise<number> {
+export interface InitOptions {
+  /** Personal mode: commit nothing, ignore artifacts via `.git/info/exclude`. */
+  selfOnly?: boolean;
+}
+
+export async function init(opts: InitOptions = {}): Promise<number> {
   const rt = resolveRuntime();
   if (!rt) {
     warn("not inside a git repository. Run `git init` first, then `grepathy init`.");
@@ -23,6 +34,7 @@ export async function init(): Promise<number> {
   }
   const { repoRoot } = rt;
   const paths = grepathyPaths(repoRoot);
+  const selfOnly = opts.selfOnly === true;
 
   // 1. Directories.
   ensureDir(paths.whyDir);
@@ -31,21 +43,18 @@ export async function init(): Promise<number> {
   const gitkeep = path.join(paths.whyDir, ".gitkeep");
   if (!fs.existsSync(gitkeep)) fs.writeFileSync(gitkeep, "");
 
-  // 2. Committed shared config (never clobber an existing one).
-  if (!fs.existsSync(paths.sharedConfigFile)) {
-    writeFileAtomic(paths.sharedConfigFile, JSON.stringify(defaultSharedConfig(), null, 2) + "\n");
-  }
-  // Local config placeholder (machine overrides; empty by default).
-  if (!fs.existsSync(paths.localConfigFile)) {
-    writeFileAtomic(paths.localConfigFile, JSON.stringify({}, null, 2) + "\n");
+  // 2 + 3. Config and ignoring. Self-only diverges here: nothing shared is
+  // written or committed — the mode lives in local config and the artifacts are
+  // ignored via the repo's private `.git/info/exclude`.
+  if (selfOnly) {
+    setupSelfOnly(repoRoot, paths);
+  } else {
+    setupShared(repoRoot, paths);
   }
 
-  // 3. Gitignore the local state dir.
-  ensureGitignore(repoRoot);
-
-  // 3b. Point agents at the why-packs via CLAUDE.md (the read-side trigger for
-  //     the "when asked to explain / review" moment, which fires no edit hook).
-  const claudeMdResult = ensureClaudeMd(repoRoot);
+  // 3b. Read-side pointer. Committed CLAUDE.md for teams; personal
+  //     CLAUDE.local.md (git-excluded) in self-only mode.
+  const claudeMdResult = selfOnly ? "CLAUDE.local.md (personal)" : ensureClaudeMd(repoRoot);
 
   // 4. Claude Code hooks (Stop + SessionEnd + PreToolUse context injection).
   const claudeResult = installClaudeHooks(repoRoot);
@@ -55,21 +64,33 @@ export async function init(): Promise<number> {
 
   // 6. Explain.
   say("");
-  say("grepathy initialized.");
+  say(selfOnly ? "grepathy initialized (self-only, personal mode)." : "grepathy initialized.");
   say("");
   say("Installed:");
-  say(`  • .ai/why/            shared why-packs (committed — this is what everyone reads)`);
-  say(`  • .ai/grepathy/       local state (gitignored)`);
-  say(`  • .grepathy.json      team config (committed — the only shared config)`);
-  say(`  • CLAUDE.md pointer   ${claudeMdResult} (tells agents to read .ai/why/)`);
+  if (selfOnly) {
+    say(`  • .ai/why/            personal why-packs (never committed)`);
+    say(`  • .git/info/exclude   ignores .ai/, CLAUDE.local.md, settings.local.json (private)`);
+    say(`  • CLAUDE.local.md     ${claudeMdResult} (tells your agents to read .ai/why/)`);
+  } else {
+    say(`  • .ai/why/            shared why-packs (committed — this is what everyone reads)`);
+    say(`  • .ai/grepathy/       local state (gitignored)`);
+    say(`  • .grepathy.json      team config (committed — the only shared config)`);
+    say(`  • CLAUDE.md pointer   ${claudeMdResult} (tells agents to read .ai/why/)`);
+  }
   say(`  • Claude Code hooks   ${claudeResult} → .claude/settings.local.json (personal)`);
   say(`  • git pre-push hook   ${prePushResult}`);
   say("");
-  say("Privacy model:");
-  say("  Your session transcript never leaves this machine. At session end (and as a");
-  say("  catch-up at git push) Grepathy distills a privacy-filtered digest of the");
-  say("  decisions — never your messages, never your questions — into .ai/why/. That");
-  say("  markdown is the only shared artifact. Review before pushing; edits are kept.");
+  if (selfOnly) {
+    say("Self-only mode:");
+    say("  Nothing grepathy produces is committed or shared. Why-packs are personal");
+    say("  notes for you and your own future agents, ignored via .git/info/exclude.");
+  } else {
+    say("Privacy model:");
+    say("  Your session transcript never leaves this machine. At session end (and as a");
+    say("  catch-up at git push) Grepathy distills a privacy-filtered digest of the");
+    say("  decisions — never your messages, never your questions — into .ai/why/. That");
+    say("  markdown is the only shared artifact. Review before pushing; edits are kept.");
+  }
   say("");
   say("Now just work. `claude`, let the agent commit, `git push`. That's it.");
 
@@ -118,6 +139,66 @@ async function offerBackfill(repoRoot: string): Promise<number> {
   say("");
   say("grepathy: backfill done. Review .ai/why/ before you commit — nothing was staged.");
   return code;
+}
+
+/** Shared/team setup: committed config + local placeholder + shared gitignore. */
+function setupShared(repoRoot: string, paths: GrepathyPaths): void {
+  if (!fs.existsSync(paths.sharedConfigFile)) {
+    writeFileAtomic(paths.sharedConfigFile, JSON.stringify(defaultSharedConfig(), null, 2) + "\n");
+  }
+  if (!fs.existsSync(paths.localConfigFile)) {
+    writeFileAtomic(paths.localConfigFile, JSON.stringify({}, null, 2) + "\n");
+  }
+  ensureGitignore(repoRoot);
+}
+
+const CLAUDE_LOCAL_POINTER = [
+  "## Design reasoning lives in `.ai/why/` (personal)",
+  "",
+  "grepathy runs here in self-only mode: it distills the *why* behind changes into",
+  "`.ai/why/<branch>.md` as personal, git-excluded notes (never committed). Before",
+  "working on unfamiliar code, run `grepathy context <file>` or grep `.ai/why/` to",
+  "see the decisions that touch it.",
+];
+
+/**
+ * Personal setup: persist the mode locally, ignore artifacts via the repo's
+ * private `.git/info/exclude` at the highest-level dir (`.ai/`), and drop a
+ * read-side pointer in CLAUDE.local.md. Writes nothing shared/committable.
+ */
+function setupSelfOnly(repoRoot: string, paths: GrepathyPaths): void {
+  const local = readLocalConfig(paths);
+  local.selfOnly = true;
+  writeFileAtomic(paths.localConfigFile, JSON.stringify(local, null, 2) + "\n");
+
+  // `.git/info/exclude` (like .gitignore) can't hide already-tracked files —
+  // warn but proceed so the mode still applies to everything not yet committed.
+  const tracked = trackedFilesUnder(repoRoot, ".ai");
+  if (tracked.length) {
+    warn(
+      `${tracked.length} file(s) under .ai/ are already git-tracked; the self-only ` +
+        "exclude can't hide them. Run `git rm --cached -r .ai` to untrack them yourself.",
+    );
+  }
+  // Mirror the artifacts normal init would gitignore (.ai/ state + the personal
+  // hooks file, which embeds machine paths), plus the personal pointer. `.claude/`
+  // itself is NOT excluded — a repo may commit `.claude/settings.json`.
+  const excl = infoExcludePath(repoRoot);
+  if (excl) ensureBlock(excl, EXCLUDE_FENCE, [".ai/", "CLAUDE.local.md", ".claude/settings.local.json"]);
+  else warn("could not resolve .git/info/exclude — artifacts were not ignored.");
+
+  ensureBlock(path.join(repoRoot, "CLAUDE.local.md"), CLAUDE_LOCAL_FENCE, CLAUDE_LOCAL_POINTER);
+}
+
+function readLocalConfig(paths: GrepathyPaths): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(paths.localConfigFile, "utf8"));
+    // Guard against a hand-corrupted config (null/array/primitive) so setting
+    // `.selfOnly` below can't throw and abort init.
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
 }
 
 function ensureGitignore(repoRoot: string): void {

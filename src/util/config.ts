@@ -48,6 +48,13 @@ export interface GrepathyConfig {
    *   commits is a hard no (commit-signing, CI conventions).
    */
   sync: "auto" | "manual";
+  /**
+   * Personal mode (set by `grepathy init --self-only`, stored local-only). The
+   * why-packs become private notes: nothing is committed and the artifacts are
+   * ignored via `.git/info/exclude` rather than the shared `.gitignore`. When
+   * true, effective `sync` is forced to "manual" so no code path commits.
+   */
+  selfOnly: boolean;
 }
 
 export const DEFAULT_CONFIG: GrepathyConfig = {
@@ -65,6 +72,7 @@ export const DEFAULT_CONFIG: GrepathyConfig = {
     minGrowthBytes: 15_360, // 15 KB
   },
   sync: "auto",
+  selfOnly: false,
 };
 
 function readJson(file: string): Record<string, unknown> | null {
@@ -104,6 +112,9 @@ export function loadConfig(repoRoot: string): GrepathyConfig {
   let cfg = DEFAULT_CONFIG;
   cfg = deepMerge(cfg, readJson(paths.sharedConfigFile));
   cfg = deepMerge(cfg, readJson(paths.localConfigFile));
+  // Self-only is a personal "never commit" mode: force sync to manual so no
+  // settle-point or explicit commit path can fire, whatever the shared config says.
+  if (cfg.selfOnly) cfg = { ...cfg, sync: "manual" };
   return cfg;
 }
 

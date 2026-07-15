@@ -4,7 +4,7 @@ import { readState } from "../state/state.js";
 import { discoverAndSync } from "../core/sweep.js";
 import { fileSize } from "../util/fsx.js";
 import { whyPackPath, slugifyBranch } from "../util/paths.js";
-import { currentBranch } from "../util/git.js";
+import { currentBranch, trackedFilesUnder } from "../util/git.js";
 import { whyPackGitStatus } from "../core/autocommit.js";
 import { say, warn } from "../util/log.js";
 
@@ -70,6 +70,22 @@ export function status(): number {
     if (!exists) say(`Current branch '${slugifyBranch(branch)}': no why-pack yet.`);
     else if (anyDirty) say(`Current branch '${slugifyBranch(branch)}': why-pack may be stale (dirty sessions).`);
     else say(`Current branch '${slugifyBranch(branch)}': up to date.`);
+  }
+
+  // Self-only: why-packs are personal and never committed, so the commit/push
+  // freshness axes don't apply — report the mode instead of nagging.
+  if (rt.cfg.selfOnly) {
+    say("");
+    const tracked = trackedFilesUnder(rt.repoRoot, ".ai");
+    if (tracked.length) {
+      say(
+        `  ⚠ why-pack: self-only mode, but ${tracked.length} file(s) under .ai/ are already ` +
+          "git-tracked — the exclude can't hide them. Run `git rm --cached -r .ai` to untrack.",
+      );
+    } else {
+      say("  why-pack: self-only mode — personal notes, not committed or shared.");
+    }
+    return 0;
   }
 
   // Git freshness: is the committed/pushed why-pack behind the working tree?
