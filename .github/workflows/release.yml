@@ -1,0 +1,35 @@
+name: Release
+
+# Publish to npm when a version tag (v*) is pushed. You still cut the release by
+# hand — `npm version <patch|minor|major>` then `git push --follow-tags` — so the
+# decision to ship stays a human gate; this only automates the rote
+# build-test-publish once you've made that call.
+#
+# One-time setup: add an `NPM_TOKEN` repo secret (npm → Access Tokens →
+# Granular/Automation token with publish rights for `grepathy`), under
+# Settings → Secrets and variables → Actions.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # lets npm attach build provenance to the published package
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: "https://registry.npmjs.org"
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
