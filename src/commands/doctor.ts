@@ -50,15 +50,18 @@ export function doctor(): number {
     problems++;
   }
 
-  // CLAUDE.md pointer (the read-side trigger for explain/review moments).
+  // Read-side pointer. Self-only uses the personal CLAUDE.local.md; teams use
+  // the committed CLAUDE.md.
+  const pointerFile = rt.cfg.selfOnly ? "CLAUDE.local.md" : "CLAUDE.md";
+  const pointerMarker = rt.cfg.selfOnly ? "grepathy:self-only" : "grepathy:begin";
   try {
-    if (fs.readFileSync(path.join(rt.repoRoot, "CLAUDE.md"), "utf8").includes("grepathy:begin")) {
-      line(OK, "CLAUDE.md points agents at .ai/why/");
+    if (fs.readFileSync(path.join(rt.repoRoot, pointerFile), "utf8").includes(pointerMarker)) {
+      line(OK, `${pointerFile} points agents at .ai/why/`);
     } else {
-      line(MEH, "CLAUDE.md has no grepathy pointer — re-run init so agents know to read .ai/why/");
+      line(MEH, `${pointerFile} has no grepathy pointer — re-run init so agents know to read .ai/why/`);
     }
   } catch {
-    line(MEH, "no CLAUDE.md — agents won't be told to read .ai/why/; re-run init");
+    line(MEH, `no ${pointerFile} — agents won't be told to read .ai/why/; re-run init`);
   }
 
   // git pre-push hook.
@@ -85,15 +88,20 @@ export function doctor(): number {
     line(dirty > 0 ? MEH : OK, `${total} session(s) known, ${dirty} needing distill`);
   }
 
-  // Why-pack git freshness — the two axes that let GitHub silently lag.
-  const g = whyPackGitStatus(rt.repoRoot);
-  if (g.uncommitted === 0 && g.unpushed === 0) {
-    line(OK, "why-pack committed and pushed");
+  // Why-pack git freshness — the two axes that let GitHub silently lag. In
+  // self-only mode nothing is committed by design, so those axes don't apply.
+  if (rt.cfg.selfOnly) {
+    line(OK, "self-only mode — why-packs are personal (not committed or shared)");
   } else {
-    const bits: string[] = [];
-    if (g.uncommitted > 0) bits.push(`${g.uncommitted} uncommitted`);
-    if (g.unpushed > 0) bits.push(`${g.unpushed} unpushed`);
-    line(MEH, `why-pack: ${bits.join(", ")} — \`grepathy sync\` then \`git push\` to catch up`);
+    const g = whyPackGitStatus(rt.repoRoot);
+    if (g.uncommitted === 0 && g.unpushed === 0) {
+      line(OK, "why-pack committed and pushed");
+    } else {
+      const bits: string[] = [];
+      if (g.uncommitted > 0) bits.push(`${g.uncommitted} uncommitted`);
+      if (g.unpushed > 0) bits.push(`${g.unpushed} unpushed`);
+      line(MEH, `why-pack: ${bits.join(", ")} — \`grepathy sync\` then \`git push\` to catch up`);
+    }
   }
 
   // Backend availability.

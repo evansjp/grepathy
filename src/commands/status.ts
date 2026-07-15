@@ -72,6 +72,14 @@ export function status(): number {
     else say(`Current branch '${slugifyBranch(branch)}': up to date.`);
   }
 
+  // Self-only: why-packs are personal and never committed, so the commit/push
+  // freshness axes don't apply — report the mode instead of nagging.
+  if (rt.cfg.selfOnly) {
+    say("");
+    say("  why-pack: self-only mode — personal notes, not committed or shared.");
+    return 0;
+  }
+
   // Git freshness: is the committed/pushed why-pack behind the working tree?
   // These two axes are what let GitHub silently lag — surface them so nobody has
   // to go sniffing. "grepathy sync" (or a plain commit + push) closes the gap.

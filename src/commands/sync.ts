@@ -25,6 +25,14 @@ export async function sync(): Promise<number> {
   // Catch up any undistilled sessions first (no commit here — we do it once below).
   const code = await distill({ allDirty: true });
 
+  // Self-only mode never commits — sync stays useful as a distill-refresh only.
+  // This is the one path that commits regardless of the `sync` setting, so it
+  // has to check selfOnly explicitly.
+  if (rt.cfg.selfOnly) {
+    say("grepathy: self-only mode — refreshed why-packs, not committing.");
+    return code;
+  }
+
   const res = autoCommitWhyPack(rt.repoRoot);
   if (res.committed) {
     say(`grepathy: committed ${(res.files ?? []).join(", ")} (${res.branch}).`);
