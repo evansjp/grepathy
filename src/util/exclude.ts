@@ -1,4 +1,5 @@
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { spawnSync } from "node:child_process";
 import { writeFileAtomic } from "./fsx.js";
 
@@ -29,7 +30,7 @@ export function infoExcludePath(repoRoot: string): string | null {
   });
   if (r.status !== 0 || !r.stdout) return null;
   const p = r.stdout.trim();
-  return p.startsWith("/") ? p : `${repoRoot}/${p}`;
+  return path.isAbsolute(p) ? path.normalize(p) : path.join(repoRoot, p);
 }
 
 function escapeRe(s: string): string {
