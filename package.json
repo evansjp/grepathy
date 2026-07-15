@@ -1,12 +1,17 @@
 {
   "name": "grepathy",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Your agent writes down why, in the repo, so everyone else's agents — and everyone else — can find it without asking you.",
   "type": "module",
   "author": "John-Paul Evans",
-  "repository": { "type": "git", "url": "git+https://github.com/evansjp/grepathy.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evansjp/grepathy.git"
+  },
   "homepage": "https://github.com/evansjp/grepathy#readme",
-  "bugs": { "url": "https://github.com/evansjp/grepathy/issues" },
+  "bugs": {
+    "url": "https://github.com/evansjp/grepathy/issues"
+  },
   "bin": {
     "grepathy": "./dist/cli.js"
   },
