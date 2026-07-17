@@ -69,6 +69,8 @@ No server, no accounts, no bot. It's a CLI, some hooks, and markdown files in gi
 
 Your transcript never leaves your machine. The only thing that gets shared is the markdown summary, and the summarizer follows strict rules: it never quotes your messages, never describes your confusion or back-and-forth, never includes business or money details, and strips secrets. Two deterministic checks sit behind the prompt (a secret/finance scanner and a rule that every entry must point at real code), then you review the file before you push. If you edit or delete an entry, Grepathy respects that forever.
 
+**Don't want anything committed at all?** `grepathy init --self-only` runs in personal mode: the why-packs stay on your machine as private notes for you and your own agents — ignored through your repo's local git-exclude, never committed or shared. Handy for trying Grepathy on an existing repo, or one that isn't yours to write to (a client's, an employer's).
+
 More detail in [docs/privacy.md](docs/privacy.md).
 
 ## What it's good for (we actually tested this)
@@ -89,7 +91,7 @@ Where it doesn't help, honestly:
 
 | Command | Purpose |
 |---|---|
-| `grepathy init` | Install hooks and dirs. Safe to re-run. Offers to backfill old sessions. |
+| `grepathy init` | Install hooks and dirs. Safe to re-run. Offers to backfill old sessions. Add `--self-only` for a private, never-committed setup. |
 | `grepathy status` / `doctor` | Health checks, what's distilled, what's stale. |
 | `grepathy context <path>` | Show the entries that apply to a file. |
 | `grepathy sync` | Distill and commit right now (still never pushes). |
