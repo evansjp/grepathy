@@ -1,6 +1,6 @@
 # Why: main
 
-<!-- grepathy:v1 generated 2026-07-15 — review before sharing; edit freely, edits are preserved -->
+<!-- grepathy:v1 generated 2026-07-17 — review before sharing; edit freely, edits are preserved -->
 
 ## Intent
 Implement Grepathy v1: a CLI and git hooks to distill AI agent session transcripts into privacy-safe, committed why-packs so future agents and humans can find reasoning without asking.
@@ -1149,3 +1149,22 @@ Status: discussed
 Touches: `.ai/why/main.md`
 
 The agent detected that grepathy's distiller had updated the why-pack file during the session, which would block `npm version` since it requires a clean working tree. It stashed these changes before the version bump and restored them afterward, allowing them to commit as part of the next push cycle per grepathy's design.
+
+### Reject why-pack pruning; prioritize semantic deduplication fixes
+Status: agent-initiated — no explicit directive to investigate or decide on pruning strategy; conclusion from analysis
+Touches: `.ai/why/main.md`, `src/commands/context.ts`
+
+Investigation of the 97KB why-pack determined that file size is not a binding scalability constraint, because context.ts filters entries by Touches glob — typical file access costs ~3KB rather than full-file reads. The critical issue is incomplete deduplication: four entry pairs are duplicates (identical Touches and decision bodies) but have titles too re-phrased for the Jaccard-0.6 algorithm to match. Two of these pairs disagree on Status, breaking grep-based provenance audits. Pruning entries would lose decision history without fixing the root cause; semantic deduplication must be strengthened to catch re-phrased titles.
+
+Considered/rejected: Implement automatic pruning or time-rotation of old entries. Rejected because it discards reasoning history and fails to address the actual constraint: deduplication completeness.
+Risk: The four identified dedupe misses follow a systematic pattern (title rephrasings). The full extent of the Jaccard matcher's blind spots is unknown. Status disagreements in duplicate entries create compounding provenance drift over multiple passes.
+Reviewer attention: Manually verify the four identified duplicate pairs to confirm they are actual duplicates. Audit and correct Status disagreements by determining the true ground truth (agent-initiated vs discussed) for each decision.
+
+### Implement Codex adapter as next priority with staleness signal generalization
+Status: discussed — refactoring prerequisite identified via OpenCode architecture analysis
+Touches: `src/adapters/codex.ts`, `src/adapters/types.ts`, `src/core/sweep.ts`, `src/commands/status.ts`, `src/commands/hook.ts`
+
+Codex was selected as the next adapter because its stub already documents the work and its append-only JSONL format maps directly to Claude Code's structure. The implementation should bundle a refactoring of staleness detection: replace `fileSize(last_distilled_offset)` with an adapter method `hasNewActivity(cursor)`. This refactoring is necessary for OpenCode (SQLite-backed), where WAL buffering causes `fileSize()` to silently report false negatives and lose reasoning. The fix generalizes the cursor to an opaque adapter-specific value. Validating against Codex (byte-offset cursor) before OpenCode (opaque cursor) avoids architectural rework and ensures OpenCode becomes additive rather than a rewrite.
+
+Considered/rejected: Implementing Codex without the refactoring (creates false confidence in the seam for other formats). OpenCode first (requires both refactoring and SQLite learning in parallel). Hermes (persistent memory not differentiated; general-assistant focus; format instability at v0.2.0).
+Reviewer attention: Verify cursor format backward compatibility for existing Claude Code sessions. Confirm the four call sites in sweep.ts, status.ts, and hook.ts properly delegate to the new adapter method after refactoring.
